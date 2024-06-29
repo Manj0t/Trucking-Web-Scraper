@@ -1,5 +1,4 @@
 import requests
-from bs4 import BeautifulSoup
 import schedule
 import time
 import smtplib
@@ -11,15 +10,16 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 from selenium.common.exceptions import NoSuchElementException
+import csv
 import os
 
 def login():
     # Path to your WebDriver executable
-    driver_path = 'Your/Path/To/your/chromedriver'
+    driver_path = 'Your/Driver/Path'
 
     # Initialize Chrome options
     chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument("Path/To/ChromeOptions")
+    chrome_options.add_argument("Your/chrome/options")
     chrome_options.add_argument("profile-directory=Default")
 
     # Initialize the WebDriver
@@ -27,7 +27,7 @@ def login():
     driver = webdriver.Chrome(service=serv, options=chrome_options)
 
     # Open the login page
-    driver.get('Webpage')
+    driver.get('Your Website')
     # Find the username and password fields and log in
 
     try:
@@ -35,7 +35,6 @@ def login():
             EC.element_to_be_clickable((By.ID, 'mat-input-1'))
         )
         # Clear and enter username
-        #Using environmental variabls for security
         username_field.clear()
         username_field.send_keys(os.getenv('YOUR_EMAIL_ENV_VAR'))
 
@@ -77,46 +76,26 @@ def login():
         return driver
     return driver
 
-def scroll_to_element(driver, scrollable_selector, target_element):
-    try:
-        scrollable_element = driver.find_element(By.CSS_SELECTOR, scrollable_selector)
-        target = scrollable_element.find_element(By.CSS_SELECTOR, target_element)
-
-        driver.execute_script("arguments[0].scrollTop = arguments[1].offsetTop;", scrollable_element, target)
-        time.sleep(2)
-    except NoSuchElementException:
-        print(f"Element not found: {target_element}")
-    except Exception as e:
-        print(f"Error scrolling to element: {e}")
-def click_element_using_js(row_element, element_selector, driver):
-    try:
-        element = row_element.find_element(By.CSS_SELECTOR, element_selector)
-
-        # Use JavaScript to click the element
-        driver.execute_script("arguments[0].click();", element)
-
-    except NoSuchElementException:
-        print(f"Element not found: {element_selector}")
-    except Exception as e:
-        print(f"Error clicking the element: {e}")
-
-
 def save_load(driver, rpm, row_element):
-    directory = 'Your/Directory/'
-    if not os.path.exists(directory):
-        os.makedirs(directory)
+    # Get current page handle
+    original_handle = driver.current_window_handle
 
-    element = '.route-dh-container.lg-flag'
-    scroller_element = ".cdk-virtual-scroll-viewport"
-    scroll_to_element(driver, scroller_element, row_element)
-    click_element_using_js(row_element, element, driver)
+    # Find and click on save icon
+    WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, ".mat-icon.notranslate.mat-icon-no-color"))
+    )
+    row_element.find_element(By.CSS_SELECTOR, ".mat-icon.notranslate.mat-icon-no-color").click()
 
-    time.sleep(2)
+    print("Clicked")
+    # Clicking save icon opens a new tab so we must close that tab
+    WebDriverWait(driver, 10).until(EC.number_of_windows_to_be(2))
 
-    filename = f'load_{time.time()}_{rpm}.png'
-    filepath = os.path.join(directory, filename)
-    driver.save_screenshot(filepath)
+    new_handle = [handle for handle in driver.window_handles if handle != original_handle][0]
+    driver.switch_to.window(new_handle)
+    driver.close()
 
+    # Switch back to original tab
+    driver.switch_to.window(original_handle)
 
 def open_link(driver, element):
     original_handle = driver.current_window_handle
@@ -139,10 +118,9 @@ def open_link(driver, element):
     return found_element, link
 
 def get_loads(driver):
-
-    # Example parsing logic (you need to adjust according to the webpage structure)
     loads = dict()
-    minRPM = 2.50
+    minRPM = 3.30
+    maxWeight = 50000
 
     try:
         WebDriverWait(driver, 10).until(
@@ -151,17 +129,90 @@ def get_loads(driver):
         row_elements = driver.find_elements(By.CSS_SELECTOR, '.row-container.ng-tns-c496-6.ng-star-inserted')
 
         for row_element in row_elements:
+            this_load = dict()
             try:
+                # Get rate per mile
                 rate_element = row_element.find_element(By.CSS_SELECTOR, '.calculated-rate.ng-star-inserted')
                 rate_text_element = rate_element.find_element(By.TAG_NAME, 'span')
                 rate_text = rate_text_element.text.strip()
 
+                # Check for info container, could be different depending on whether the site is fullscreened or not
+                try:
+                    # Full Screen
+                    info_container = row_element.find_element(By.CSS_SELECTOR, '.container-lg.ng-star-inserted')
+                    info = info_container.find_elements(By.TAG_NAME, 'span')
+                    i = 0
+                    for elements in info:
+                        if elements.text.strip().endswith(" ft"):
+                            this_load["size"] = float(elements.text.strip().replace(" ft", ""))
+                            i = 1
+                        elif elements.text.strip().endswith(" lbs"):
+                            this_load["weight"] = float(elements.text.strip().split(" lbs")[0].replace(",", ""))
+                            i = 2
+                        else:
+                            this_load["type"] = elements.text.strip()
+
+                    if i == 0:
+                        raise NoSuchElementException
+
+                except NoSuchElementException:
+                    # Not Full Screen
+                    try:
+                        info_container = row_element.find_element(By.CSS_SELECTOR, '.info-container')
+                        info = info_container.find_elements(By.TAG_NAME, 'span')
+                        for elements in info:
+                            if elements.text.strip().endswith(" ft"):
+                                this_load["size"] = float(elements.text.strip().replace(" ft", ""))
+                            elif elements.text.strip().endswith(" lbs"):
+                                this_load["weight"] = float(elements.text.strip().split(" lbs")[0].replace(",", ""))
+                            else:
+                                this_load["type"] = elements.text.strip()
+                    except NoSuchElementException:
+                        pass
+
+                # check for origin and destination info, could be different depending on whether the site is full screen or not
+                try:
+                    origin_info = row_element.find_element(By.CSS_SELECTOR, '.origin')
+                    check = origin_info.find_element(By.CSS_SELECTOR, '.deadhead').text.strip()
+                    this_load["origin"] = origin_info.find_element(By.CSS_SELECTOR, '.truncate.extended-trip-point').text.strip()
+
+                    destination_info = row_element.find_element(By.CSS_SELECTOR, '.destination')
+                    this_load["destination"] = destination_info.find_element(By.CSS_SELECTOR, '.truncate.extended-trip-point').text.strip()
+                except NoSuchElementException:
+                    try:
+                        origin_info = row_element.find_element(By.CSS_SELECTOR, '.city-state-container')
+                        this_load["origin"] = origin_info.find_element(By.CSS_SELECTOR, '.truncate').text.strip() + ", " + origin_info.find_element(By.CSS_SELECTOR, '.state').text.strip()
+
+                        destination_info = row_element.find_element(By.CSS_SELECTOR, '.city-state-container.ng-star-inserted')
+                        this_load["destination"] = destination_info.find_element(By.CSS_SELECTOR, '.truncate').text.strip() + ", " + destination_info.find_element(By.CSS_SELECTOR, '.state').text.strip()
+                    except NoSuchElementException:
+                        pass
+
+                # Should be there every time, but use try block just in case
+                try:
+                    this_load["pickup"] = row_element.find_element(By.CSS_SELECTOR, '.cell-container.timing-container').text.strip()
+                except NoSuchElementException:
+                    print("No pickup provided")
+
+                # This will be provided if there is a rpm
+                # If this is not provided, skip
+                this_load["offer"] = row_element.find_element(By.CSS_SELECTOR, '.offer').text.strip()
+
+                # Check for company
+                company = None
+                try:
+                    company = row_element.find_element(By.CSS_SELECTOR, '.mat-tooltip-trigger.truncate.anchor').text.strip()
+                except NoSuchElementException:
+                    company = "N/A"
+
                 if rate_text.endswith('*/mi'):
+                    # remove non number characters and cast to float
                     rpm = float(rate_text.split('*/mi')[0].replace('$', ''))
 
-                    if rpm >= minRPM:
+                    if rpm >= minRPM and this_load["weight"] <= maxWeight:
+                        this_load["rpm"] = rpm
                         save_load(driver, rpm, row_element)
-                        loads[rpm] = rpm
+                        loads[company] = this_load
 
             except NoSuchElementException:
                 print("Rate element not found, continuing to next row.")
@@ -177,8 +228,8 @@ def get_loads(driver):
     return loads
 
 def send_email(loads, to_email):
-    from_email = "YourEmail"
-    from_password = "Your Password"
+    from_email = "YOUR EMAIL"
+    from_password = "YOUR PASSWORD"
 
     to_email = to_email
 
@@ -188,7 +239,7 @@ def send_email(loads, to_email):
     server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
     server.login(from_email, from_password)
 
-    subject = f"{subject_base} " + "," * i
+    subject = f"{subject_base} " + ","
     msg = MIMEText(body, 'html')
     msg['Subject'] = subject
     msg['From'] = from_email
@@ -197,12 +248,12 @@ def send_email(loads, to_email):
     server.sendmail(from_email, to_email, msg.as_string())
 
 def check_and_notify():
-    url = 'Webpage'  # Replace with the actual URL
+    url = 'YOUR WEBSITE'  # Replace with the actual URL
     min_price = 1000
     max_price = 5000
     min_miles = 100
     max_miles = 1000
-    to_email = 'ToEmail'
+    to_email = 'TO EMAIL'
 
     loads = get_loads(url, min_price, max_price, min_miles, max_miles)
     if loads:
@@ -210,16 +261,14 @@ def check_and_notify():
     else:
         send_email("none", to_email)
 
-# Schedule the job to run every hour
-# schedule.every().hour.do(check_and_notify)
 
 driver = login()
 
-driver.get('Webpage')
+driver.get('Your Website')
 
 WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, '.route-dh-container.lg-flag'))
-    )
+)
 loads = get_loads(driver)
 print(loads)
 time.sleep(1000)
