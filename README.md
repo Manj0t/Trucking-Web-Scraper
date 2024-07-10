@@ -34,6 +34,7 @@ This script provides a GUI for users to input criteria for the scraping process 
 
 ```bash
 python runner.py
+```
 
 **GUI Components:**
 
