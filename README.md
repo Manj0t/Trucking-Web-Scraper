@@ -19,10 +19,11 @@ This project is designed to scrape load information from a website based on user
 
 1. **Clone the repository**.
 2. **Install the required Python packages using pip**:
+
     ```bash
     pip install pygame selenium
     ```
-3. **Ensure you have ChromeDriver installed and available in your PATH or specify its path in scrapingLogic.py**.
+4. **Ensure you have ChromeDriver installed and available in your PATH or specify its path in scrapingLogic.py**.
 
 ## Usage
 
