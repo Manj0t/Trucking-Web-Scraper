@@ -14,11 +14,14 @@ origin = locations.pop(0)
 start_date = locations.pop(0)
 end_date = locations.pop(0)
 
-# Run job once before scheduling
-SL.job(minRPM, maxWeight, origin, end_date, start_date, locations)
+# Define a job wrapper to pass parameters to the job function
+def job_wrapper():
+    SL.job(minRPM, maxWeight, origin, end_date, start_date, locations)
 
+# Run job once before scheduling
+job_wrapper()
 # Schedule the job to run every hour
-schedule.every().hour.do(SL.job(minRPM, maxWeight, origin, end_date, start_date, locations))
+schedule.every().hour.do(job_wrapper())
 
 while True:
     schedule.run_pending()
