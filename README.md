@@ -74,3 +74,18 @@ Specify the path to your ChromeDriver executable in scrapingLogic.py:
 
 ```python
 driver_path = 'Path/To/Your/Driver'
+```
+
+**Example Workflow**
+
+1. Launch **runner.py** to open the GUI.
+2. Enter the desired criteria in the input boxes.
+3. Click the **Start** button to begin the scraping process.
+4. The program will log into the website, input the specified criteria, and retrieve load information.
+5. The retrieved loads are displayed in the console or saved as specified in the code.
+
+**Troubleshooting**
+
+- Ensure ChromeDriver is correctly installed and specified in the script.
+- Verify that your environment variables for login credentials are correctly set.
+- Check the website's structure for any changes that might affect the element locators used in the scraping logic.
