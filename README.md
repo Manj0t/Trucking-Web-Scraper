@@ -88,4 +88,5 @@ driver_path = 'Path/To/Your/Driver'
 
 - Ensure ChromeDriver is correctly installed and specified in the script.
 - Verify that your environment variables for login credentials are correctly set.
+- Make sure placeholder text is changed.
 - Check the website's structure for any changes that might affect the element locators used in the scraping logic.
