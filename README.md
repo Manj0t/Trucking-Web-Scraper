@@ -62,6 +62,12 @@ This script contains the logic for logging into the website, handling potential 
 
 **Configuration**
 
+- Check and change any line marked by the following comment to your information:
+
+```python
+# Element Needs to Be Changed
+```
+
 **Environment Variables**
 
 Store your login credentials in environment variables:
