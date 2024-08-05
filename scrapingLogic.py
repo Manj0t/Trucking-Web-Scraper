@@ -376,7 +376,6 @@ def get_loads(show_similar_results, driver, maxWeight, minOffer, minRPM):
                         offer = float(offer.replace(',', ''))
                     else:
                         offer = float(offer)
-                    print(offer)
                     if rpm >= minRPM and this_load["weight"] <= maxWeight or offer >= minOffer and this_load["weight"] <= maxWeight:
                         this_load["rpm"] = rpm
                         this_load["offer"] = offer
