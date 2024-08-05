@@ -10,6 +10,7 @@ import os
 import sys
 import pygame
 import time
+import math
 
 load_counter = 0
 def enter_verification_code():
@@ -84,11 +85,11 @@ Returns:
 """
 def login():
     # Path to your WebDriver executable
-    driver_path = 'Path/To/Your/Driver'
+    driver_path = 'Path/To/Your/Driver' # Element Needs to Be Changed
 
     # Initialize Chrome options
     chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument("user-data-dir=Your/chrome/options")
+    chrome_options.add_argument("user-data-dir=Path/To/Your/Chrome/File") # Element Needs to Be Changed
     chrome_options.add_argument("profile-directory=Default")
 
     # Initialize the WebDriver
@@ -96,8 +97,7 @@ def login():
     driver = webdriver.Chrome(service=serv, options=chrome_options)
 
     # Open the login page
-    driver.get(
-        'Website')
+    driver.get('YOUR WEBSITE') # Element Needs to Be Changed
     # Find the username and password fields and log in
 
     try:
@@ -106,14 +106,14 @@ def login():
         )
         # Clear and enter username
         username_field.clear()
-        username_field.send_keys(os.getenv('YOUR_EMAIL_ENV_VAR'))
+        username_field.send_keys(os.getenv('YOUR_EMAIL_ENV_VAR')) # Element Needs to Be Changed
 
         password_field = WebDriverWait(driver, 6).until(
             EC.element_to_be_clickable((By.ID, 'mat-input-0'))
         )
         # Clear and enter password
         password_field.clear()
-        password_field.send_keys(os.getenv('YOUR_PASSWORD_ENV_VAR'))
+        password_field.send_keys(os.getenv('YOUR_PASSWORD_ENV_VAR')) # Element Needs to Be Changed
 
         # Click login button
         login_button = driver.find_element(By.ID, 'submit-button')
@@ -158,6 +158,9 @@ Args:
     start_date (str): The start date to input.
 """
 def input_date(driver, end_date, start_date):
+    # Checks if neither dates were given
+    if start_date == end_date == '':
+        return
     # Wait for the start date input field to be present
     start_date_field = WebDriverWait(driver, 10).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, 'input[matstartdate]'))
@@ -168,13 +171,13 @@ def input_date(driver, end_date, start_date):
         EC.presence_of_element_located((By.CSS_SELECTOR, 'input[matenddate]'))
     )
 
-    # Clear the input fields
-    start_date_field.send_keys('\ue003' * 10)
-    end_date_field.send_keys('\ue003' * 10)
-
-    # Send the start and end dates
-    start_date_field.send_keys(start_date)
-    end_date_field.send_keys(end_date)
+    # Clear the input fields and send keys
+    if start_date != '':
+        start_date_field.send_keys('\ue003' * 10)
+        start_date_field.send_keys(start_date)
+    if end_date != '':
+        end_date_field.send_keys('\ue003' * 10)
+        end_date_field.send_keys(end_date)
 
 """
 Searches for the origin location by inputting it in the specified field.
@@ -252,6 +255,7 @@ def save_load(driver, row_element):
 Retrieves loads from the webpage that meet the specified criteria.
 
 Args:
+    show_similar_results (bool): Whether or not to show similar results.
     driver (webdriver.Chrome): The WebDriver instance to interact with.
     minRPM (float): The minimum rate per mile for the loads.
     maxWeight (float): The maximum weight for the loads.
@@ -259,23 +263,43 @@ Args:
 Returns:
     loads (dict): A dictionary of loads that meet the criteria.
 """
-def get_loads(driver, minRPM, maxWeight):
+def get_loads(show_similar_results, driver, maxWeight, minOffer, minRPM):
     loads = dict()
     global load_counter
 
     try:
+        # Check if similar results should be on or off, by default it is on
+        if not show_similar_results:
+            try:
+                similar_result_button = WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, '.mat-slide-toggle-thumb'))
+                )
+                similar_result_button.click()
+            except:
+                pass
         WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, '.row-container.ng-tns-c496-6.ng-star-inserted'))
+            EC.presence_of_element_located((By.CSS_SELECTOR, '.row-container.ng-tns-c497-6.ng-star-inserted'))
         )
-        row_elements = driver.find_elements(By.CSS_SELECTOR, '.row-container.ng-tns-c496-6.ng-star-inserted')
-
+        row_elements = driver.find_elements(By.CSS_SELECTOR, '.row-container.ng-tns-c497-6.ng-star-inserted')
         for row_element in row_elements:
             this_load = dict()
             try:
                 # Get rate per mile
                 rate_element = row_element.find_element(By.CSS_SELECTOR, '.calculated-rate.ng-star-inserted')
-                rate_text_element = rate_element.find_element(By.TAG_NAME, 'span')
-                rate_text = rate_text_element.text.strip()
+                if minRPM < math.inf:
+                    try:
+                        rate_text = rate_element.find_element(By.TAG_NAME, 'span').text.strip()
+                    except Exception as e:
+                        rate_text = '$' + str(-math.inf) + '*/mi'
+                else:
+                    rate_text = '$' + str(-math.inf) + '*/mi'
+                if minOffer < math.inf:
+                    try:
+                        offer_element = row_element.find_element(By.CSS_SELECTOR, '.offer').text.strip()
+                    except Exception as e:
+                        offer_element = '$' + str(-math.inf)
+                else:
+                    offer_element = '$' + str(-math.inf)
 
                 # Check for info container, could be different depending on whether the site is fullscreened or not
                 try:
@@ -338,10 +362,6 @@ def get_loads(driver, minRPM, maxWeight):
                 except NoSuchElementException:
                     print("No pickup provided")
 
-                # This will be provided if there is a rpm
-                # If this is not provided, skip
-                this_load["offer"] = row_element.find_element(By.CSS_SELECTOR, '.offer').text.strip()
-
                 # Check for company
                 try:
                     this_load["company"] = row_element.find_element(By.CSS_SELECTOR, '.mat-tooltip-trigger.truncate.anchor').text.strip()
@@ -351,15 +371,20 @@ def get_loads(driver, minRPM, maxWeight):
                 if rate_text.endswith('*/mi'):
                     # remove non number characters and cast to float
                     rpm = float(rate_text.split('*/mi')[0].replace('$', ''))
-
-                    if rpm >= minRPM and this_load["weight"] <= maxWeight:
+                    offer = offer_element.replace('$', '')
+                    if offer.find(',') != -1:
+                        offer = float(offer.replace(',', ''))
+                    else:
+                        offer = float(offer)
+                    print(offer)
+                    if rpm >= minRPM and this_load["weight"] <= maxWeight or offer >= minOffer and this_load["weight"] <= maxWeight:
                         this_load["rpm"] = rpm
+                        this_load["offer"] = offer
                         save_load(driver, row_element)
                         loads[f"load_{load_counter}"] = this_load
                         load_counter += 1
 
             except NoSuchElementException:
-                # print("Rate element not found, continuing to next row.")
                 continue
 
             except Exception as e:
@@ -380,8 +405,8 @@ Args:
     to_email (str): The recipient email address.
 """
 def send_email(loads, to_email):
-    from_email = "YOUR EMAIL"
-    from_password = "YOUR PASSWORD"
+    from_email = "YOUR FROM EMAIL" # Element Needs to Be Changed
+    from_password = "APP PASSWORD" # Element Needs to Be Changed
 
     subject = "ALERT"
     body = ""
@@ -424,6 +449,7 @@ def send_email(loads, to_email):
 Executes the entire job sequence of logging in, searching for loads, and sending email alerts.
 
 Args:
+    show_similar_results (bool): Whether or not to show similar results.
     minRPM (float): The minimum rate per mile for the loads.
     maxWeight (float): The maximum weight for the loads.
     origin (str): The origin location for the search.
@@ -431,15 +457,17 @@ Args:
     start_date (str): The start date for the search.
     locations (list): A list of destination locations to search for.
 """
-def job(minRPM, maxWeight, origin, end_date, start_date, locations):
+def job(show_similar_result, minRPM, minOffer, maxWeight, origin, end_date, start_date, locations):
     loads = dict()
     driver = login()
 
-    driver.get('WEBSITE')
+    driver.get('YOUR WEBSITE') # Element Needs to Be Changed
 
     input_date(driver, end_date, start_date)
 
     for location in locations:
+        if location == '':
+            continue
         search_destination(driver, location)
 
         # Causes issues if origin is not searched every loop
@@ -453,13 +481,14 @@ def job(minRPM, maxWeight, origin, end_date, start_date, locations):
         # Give time for page to load before moving on
         time.sleep(2)
 
-        these_loads = get_loads(driver, minRPM, maxWeight)
+        these_loads = get_loads(show_similar_result, driver, maxWeight, minOffer, minRPM)
 
         for key in these_loads:
             if these_loads[key] not in loads.values():
                 loads[key] = these_loads[key]
 
     if loads:
-        send_email(loads, "TO EMAIL") # Input the email you want to send to
+        to_email = "YOUR TO EMAIL" # Element Needs to Be Changed
+        send_email(loads, to_email)
 
     driver.quit()

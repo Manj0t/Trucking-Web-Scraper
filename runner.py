@@ -249,6 +249,9 @@ folder_path = 'saved_load_search'
 txt_files = get_txt_files(folder_path)
 dropdown = Dropdown(300, 580, 150, 50,  pygame.font.Font(None, 24), GREY, DARK_GREY, txt_files)
 
+# Default value for similar result button
+similar_text = 'OFF'
+similar_color = DARK_RED
 # Main loop
 while running:
     screen.fill(BLACK)
@@ -270,6 +273,8 @@ while running:
     # Button to remove last input box
     draw_button(80, 580, 160, 50, DARK_RED, 'Remove Input', 32)
 
+    draw_button(80, 480, 160, 50, similar_color, 'Similar Results: ' + similar_text, 22)
+
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             # if the program exits, make sure to exit scraping program if it is still running
@@ -283,8 +288,8 @@ while running:
         if start_program and start_end_text == 'Start':
             data_json = json.dumps(data)
             # Run main script and pass the JSON string as an argument
-            python_executable = "Path/To/Python.exe"
-            process = subprocess.Popen([python_executable, 'main.py', data_json])
+            python_executable = "Path/To/Your/Python.exe" # Element Needs to Be Changed
+            process = subprocess.Popen([python_executable, 'main.py', data_json]) # Element Needs to Be Changed (Maybe)
 
             start_end_text = 'Stop Program'
             start_end_color = RED
@@ -309,12 +314,13 @@ while running:
             # Checks if the start button has been clicked
             if 700 <= mouse_pos[0] <= 950 and 580 <= mouse_pos[1] <= 630:
                 # Adds the inputed text to a data list to be passed into scraping program
+                data.append(similar_text)
                 for input_box in input_boxes:
                     data.append(input_box.text)
                 start_program = True
             # Checks if the button to add more destination input boxes has been clicked
             elif more_buttonX <= mouse_pos[0] <= more_buttonX + 40 and more_buttonY <= mouse_pos[1] <= more_buttonY + 40:
-                # Checks if max number of destinatino boxes has already been created
+                # Checks if max number of destination boxes has already been created
                 if dest_boxes == 13:
                     continue
                 elif dest_boxes == 12:
@@ -376,7 +382,9 @@ while running:
                                     file_name = input_name_box.text + '.txt'
                                     with open(os.path.join(folder_path, file_name), 'w') as file:
                                         # Write the input data to the file
-                                        file.write('_'.join([box.text for box in input_boxes if box.text != '']))
+                                        file.write(similar_text + '_')
+                                        file.write('_'.join([box.text for box in input_boxes
+                                                             if box.text != '' or box.placeholder in [' Start Date  Ex. 07/02/2024', ' End Date  Ex. 07/02/2024']]))
 
                                     # Clear the input box and return to the main screen
                                     input_name_box.text = ''
@@ -393,15 +401,21 @@ while running:
                     pygame.display.flip()
             elif 500 <= mouse_pos[0] <= 650 and 580 <= mouse_pos[1] <= 630:
                 if dropdown.selected_option != 'Saved Options':
-                    with open(f'saved_load_search/{dropdown.selected_option}.txt') as file:
+                    with open(f'saved_searches/{dropdown.selected_option}.txt') as file:
                         file_content = file.read()
                     i = 0
                     file_content = file_content.split('_')
+                    similar_text = file_content.pop(0)
+                    # Determines whether similar results should be on or off based on saved file
+                    if similar_text == 'OFF':
+                        similar_color = DARK_RED
+                    else:
+                        similar_color = DARK_GREEN
                     for element in file_content:
                         if i < len(input_boxes):
                             input_boxes[i].text = element
                         else:
-                            # Checks if max number of destinatino boxes has already been created
+                            # Checks if max number of destination boxes has already been created
                             if dest_boxes == 13:
                                 continue
                             elif dest_boxes == 12:
@@ -423,6 +437,14 @@ while running:
                             else:
                                 more_buttonX += X_OFFSET
                         i+= 1
+            # Changes the state of the similar results button from ON to OFF or vice versa
+            elif 80 <= mouse_pos[0] <= 240 and 480 <= mouse_pos[1] <= 530:
+                if similar_text == 'OFF':
+                    similar_text = 'ON'
+                    similar_color = DARK_GREEN
+                else:
+                    similar_text = 'OFF'
+                    similar_color = DARK_RED
 
 
             for box in input_boxes:
